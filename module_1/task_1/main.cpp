@@ -6,35 +6,46 @@ n, m ≤ 100000.
 Требования:  Время работы O(n + m).
  */
 #include <iostream>
-#include <sstream>
+#include <assert.h>
 
-void run(std::istream &in, std::ostream &out) {
-    int n, m;
-    in >> n;
+class Array {
+private:
+    int *arr;
+    size_t count;
+    size_t size;
+public:
+    Array() = delete;
 
-    int *arr_a = new int[n];
-    for (int i = 0; i < n; i++) {
-        in >> arr_a[i];
+    Array &operator=(const Array &b) = delete;
+
+    Array(size_t cnt) : size(cnt), count(0) {
+        arr = new int[cnt];
     }
-    in >> m;
 
-    int *arr_b = new int[m];
-    for (int i = 0; i < m; i++) {
-        in >> arr_b[i];
+    ~Array() {
+        delete[]arr;
     }
-    int k = 0;
-    in >> k;
 
+    void push(int el);
+
+    std::size_t getCountPair(Array &B, int k);
+
+    std::size_t getSize();
+
+    const int &operator[](const int index) const;
+
+    friend std::istream &operator>>(std::istream &in, int value);
+
+};
+
+std::size_t Array::getCountPair(Array &B, int k) {
     int left = 0;
-    int right = m - 1;
-    int count = 0;
-    // a[i] + b[j] == k -> left++ && right--
-    // a[i] + b[j] > k -> right--
-    // a[i] + b[j] < k -> left++
-    while (left < n && right > -1) {
-        int cur = arr_a[left] + arr_b[right];
+    int right = B.getSize() - 1;
+    int cnt = 0;
+    while (left < getSize() && right > -1) {
+        int cur = (*this)[left] + B[right];
         if (cur == k) {
-            ++count;
+            ++cnt;
             ++left;
             --right;
         } else if (cur > k) {
@@ -43,13 +54,48 @@ void run(std::istream &in, std::ostream &out) {
             ++left;
         }
     }
-    out << count << std::endl;
-    delete[] arr_a;
-    delete[] arr_b;
+    return cnt;
+}
+
+std::size_t Array::getSize() {
+    return this->size;
+}
+
+void Array::push(int el) {
+    arr[count] = el;
+    count++;
+}
+
+const int &Array::operator[](const int index) const {
+    assert(index > -1 && index < size);
+    return arr[index];
+}
+
+std::istream &operator>>(std::istream &in, Array &array) {
+    int tmp = 0;
+    in >> tmp;
+    array.push(tmp);
+
+    return in;
 }
 
 int main() {
-    run(std::cin, std::cout);
+    int n, m;
+    std::cin >> n;
+    Array arr_a(n);
+    for (int i = 0; i < n; i++) {
+        std::cin >> arr_a;
+    }
+    std::cin >> m;
+    Array arr_b(m);
+
+    for (int i = 0; i < m; i++) {
+        std::cin >> arr_b;
+    }
+    int k = 0;
+    std::cin >> k;
+
+    std::cout << arr_a.getCountPair(arr_b, k);
 
     return 0;
 }
