@@ -10,20 +10,21 @@ i-ая проба g(k, i)=g(k, i-1) + i (mod m). m - степень двойки
 #include <vector>
 #include <string>
 #include <cassert>
+#include <sstream>
 
 const int init = 8;
 const double _coefFill = 3 / 4.;
 
 struct QuadraticCollision {
-    unsigned int operator()(unsigned int hash, int iter) const {
-        return hash + 1 / 2 * iter * (iter + 1);
+    unsigned int operator()(unsigned int hash, size_t iter) const {
+        return hash + iter + 1;
     }
 };
 
 struct HashGorner {
     unsigned int operator()(const std::string &str, int m = 7) const {
         unsigned int hash = 0;
-        for (const auto i : str) {
+        for (const auto &i : str) {
             hash = hash * m + i;
         }
         return hash;
@@ -55,10 +56,11 @@ private:
     struct HashElem {
         T data;
         bool status; //deleted == false
+        unsigned int hash;
 
         HashElem() = delete;
 
-        explicit HashElem(const T &_data) : data(_data), status(true) {};
+        HashElem(const T &_data, unsigned int _hash) : data(_data), status(true), hash(_hash) {};
     };
 
     std::vector<HashElem *> table;
@@ -93,9 +95,10 @@ bool HashTable<T, H, C>::Add(HashElem *data) {
     if (!data) {
         return false;
     }
-    unsigned int hash = Hasher(data->data) % capacity;
-    int iter = 0;
-    while (table[hash] && iter != capacity) {
+    unsigned int absoluteHash = data->hash;
+    unsigned int hash = absoluteHash % capacity;
+    size_t iter = 0;
+    while (table[hash] && iter < capacity) {
         if (table[hash]->status && table[hash]->data == data->data) {
             return false;
         }
@@ -107,19 +110,19 @@ bool HashTable<T, H, C>::Add(HashElem *data) {
     }
     table[hash] = data;
     size++;
+
     return true;
-
-
 }
 
 template<class T, class H, class C>
 bool HashTable<T, H, C>::Add(const T &_data) {
-    if (size / capacity >= coefFill) {
+    if (size / static_cast<double>(capacity) >= coefFill) {
         growTable();
     }
-    unsigned int hash = Hasher(_data) % capacity;
-    int iter = 0;
-    int first_del = -1;
+    unsigned int absoluteHash = Hasher(_data);
+    unsigned int hash = absoluteHash % capacity;
+    size_t iter = 0;
+    ssize_t first_del = -1;
 
     while (table[hash] && iter != capacity) {
         if (table[hash]->status && table[hash]->data == _data) {
@@ -132,9 +135,10 @@ bool HashTable<T, H, C>::Add(const T &_data) {
         hash = Probing(hash, iter) % capacity;
     }
     if (first_del == -1) {
-        table[hash] = new HashElem(_data);
+        table[hash] = new HashElem(_data, absoluteHash);
     } else {
         table[first_del]->data = _data;
+        table[first_del]->hash = absoluteHash;
         table[first_del]->status = true;
     }
     size++;
@@ -144,9 +148,9 @@ bool HashTable<T, H, C>::Add(const T &_data) {
 template<class T, class H, class C>
 bool HashTable<T, H, C>::Has(const T &_data) const {
     unsigned int hash = Hasher(_data) % capacity;
-    int iter = 0;
+    size_t iter = 0;
 
-    while (table[hash] && iter != capacity) {
+    while (table[hash] && iter <= capacity) {
         if (table[hash]->status && table[hash]->data == _data) {
             return true;
         }
@@ -159,15 +163,17 @@ bool HashTable<T, H, C>::Has(const T &_data) const {
 template<class T, class H, class C>
 bool HashTable<T, H, C>::Delete(const T &_data) {
     unsigned int hash = Hasher(_data) % capacity;
-    int iter = 0;
-    while (table[hash] && iter != capacity) {
+    size_t iter = 0;
+    while (table[hash] && iter <= capacity) {
         if (table[hash]->status && table[hash]->data == _data) {
             table[hash]->status = false;
+            table[hash]->data = "";
+            table[hash]->hash = 0;
             size--;
             return true;
         }
         iter++;
-        hash = Probing(hash, iter);
+        hash = Probing(hash, iter) % capacity;
     }
     return false;
 }
@@ -189,28 +195,63 @@ void HashTable<T, H, C>::growTable() {
     }
 }
 
-int main() {
+void run(std::istream &input, std::ostream &output) {
     HashGorner Gorner;
     QuadraticCollision Collision;
 
     HashTable<std::string, HashGorner, QuadraticCollision> hashTb(Gorner, Collision);
     char operation = 0;
     std::string data;
-    while (std::cin >> operation >> data) {
+    while (input >> operation >> data) {
         switch (operation) {
             case '+':
-                std::cout << (hashTb.Add(data) ? "OK" : "FAIL") << std::endl;
+                output << (hashTb.Add(data) ? "OK" : "FAIL") << std::endl;
                 break;
             case '-':
-                std::cout << (hashTb.Delete(data) ? "OK" : "FAIL") << std::endl;
+                output << (hashTb.Delete(data) ? "OK" : "FAIL") << std::endl;
                 break;
             case '?':
-                std::cout << (hashTb.Has(data) ? "OK" : "FAIL") << std::endl;
+                output << (hashTb.Has(data) ? "OK" : "FAIL") << std::endl;
                 break;
             default:
                 assert(false);
         }
     }
+}
 
+void testHash() {
+    {
+        std::stringstream input;
+        std::stringstream output;
+        input << "+1 +2 -1 -2 ?1 ?2 +1 +2 -2 -1 ?1";
+        run(input, output);
+        assert(output.str() == "OK\nOK\nOK\nOK\nFAIL\nFAIL\nOK\nOK\nOK\nOK\nFAIL\n");
+        std::cout << "SUCCESS" << std::endl;
+    }
+    {
+        std::stringstream input;
+        std::stringstream output;
+        input << "+ hello\n"
+                 "+ bye\n"
+                 "? bye\n"
+                 "+ bye\n"
+                 "- bye\n"
+                 "? bye\n"
+                 "? hello";
+        run(input, output);
+        assert(output.str() == "OK\n"
+                               "OK\n"
+                               "OK\n"
+                               "FAIL\n"
+                               "OK\n"
+                               "FAIL\n"
+                               "OK\n");
+        std::cout << "SUCCESS" << std::endl;
+    }
+}
+
+int main() {
+    run(std::cin, std::cout);
+//    testHash();
     return 0;
 }
