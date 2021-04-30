@@ -88,10 +88,10 @@ void BinaryTree<T, Compare>::Add(const T _data) {
 
     cur = new Node(_data);
 
-    if (cur->data < parent->data) {
-        parent->left = cur;
-    } else {
+    if (cmp(parent->data, cur->data)) {
         parent->right = cur;
+    } else {
+        parent->left = cur;
     }
 }
 
@@ -118,6 +118,7 @@ void BinaryTree<T, Compare>::PostOrder(void (*visitor)(T &)) {
         }
         cur = nodes.top();
         nodes.pop();
+
         auto top = nodes.size() ? nodes.top() : nullptr;
         if (cur->right && top == cur->right) {
             nodes.pop();
