@@ -39,11 +39,17 @@ public:
 
     void remove(T &_data);
 
+    void removeByPos(size_t pos);
+
+
 private:
     Node<T> *root;
     Compare cmp;
 
     Node<T> *remove(T &_data, Node<T> *node);
+
+    Node<T> *remove(size_t pos, Node<T> *node);
+
 
     Node<T> *insert(T &_data, size_t &pos, Node<T> *node);
 
@@ -143,6 +149,7 @@ Node<T> *AvlTree<T, Compare>::balance(Node<T> *node) {
     assert(node);
 
     fixHeight(node);
+    fixCount(node);
     if (bFactor(node) == 2) {
         if (bFactor(node->right) < 0) {
             node->right = rotateRight(node->right);
@@ -164,7 +171,7 @@ Node<T> *AvlTree<T, Compare>::insert(T &_data, size_t &pos, Node<T> *node) {
         return new Node<T>(_data);
     }
     node->count++;
-    if (cmp(_data, node->data)) {
+    if (cmp(_data, node->data) < 0) {
         pos += count(node->right) + 1;
         node->left = insert(_data, pos, node->left);
     } else {
@@ -178,6 +185,32 @@ Node<T> *AvlTree<T, Compare>::insert(T &_data, size_t &pos, Node<T> *node) {
 template<class T, class Compare>
 void AvlTree<T, Compare>::remove(T &_data) {
     this->root = remove(_data, this->root);
+}
+
+template<class T, class Compare>
+void AvlTree<T, Compare>::removeByPos(size_t pos) {
+    this->root = remove(pos, this->root);
+}
+
+template<class T, class Compare>
+Node<T> *AvlTree<T, Compare>::remove(size_t pos, Node<T> *node) {
+    if (!node) {
+        return nullptr;
+    }
+    size_t cur = node->count;
+    assert(cur > pos);
+    cur = count(node->right);
+
+    while (cur != pos) {
+        if (pos < cur) {
+            node = node->right;
+            cur -= 1 + count(node->left);
+        } else {
+            node = node->left;
+            cur += 1 + count(node->right);
+        }
+    }
+    return this->remove(node->data, this->root);
 }
 
 template<class T, class Compare>
@@ -242,8 +275,8 @@ Node<T> *AvlTree<T, Compare>::moveMin(Node<T> *node, Node<T> **minAddr) {
 }
 
 struct SolidersCmp {
-    bool operator()(const int a, const int b) {
-        return a <= b;
+    int operator()(const int a, const int b) {
+        return a - b;
     }
 };
 
@@ -262,7 +295,7 @@ int main() {
                 std::cout << tree.insert(val) << std::endl;
                 break;
             case 2:
-                tree.remove(val);
+                tree.removeByPos(val);
                 break;
             default:
                 assert(false);
