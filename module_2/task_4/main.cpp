@@ -19,7 +19,7 @@ struct Node {
     Node *left;
     Node *right;
     unsigned char height;
-    int count;  //количество узлов кол-во дочерних + 1
+    unsigned int count;  //количество узлов кол-во дочерних + 1
 
     Node(T &_data) : data(_data), left(nullptr), right(nullptr), height(1), count(1) {}
 };
@@ -32,9 +32,17 @@ public:
     explicit AvlTree(Compare _cmp) : root(nullptr), cmp(_cmp) {}
 
     ~AvlTree() {
-        PostOrder([](Node<T> *node) { delete node; });
+//        PostOrder([](Node<T> *node) { delete node; });
+        PostOrder(root);
     }
-
+    void PostOrder(Node<T> *node) {
+        if (!node) {
+            return;
+        }
+        PostOrder(node->left);
+        PostOrder(node->right);
+        delete node;
+    }
     size_t insert(T &_data);
 
     void remove(T &_data);
@@ -49,7 +57,6 @@ private:
     Node<T> *remove(T &_data, Node<T> *node);
 
     Node<T> *remove(size_t pos, Node<T> *node);
-
 
     Node<T> *insert(T &_data, size_t &pos, Node<T> *node);
 
@@ -79,28 +86,30 @@ private:
     }
 
     int bFactor(Node<T> *node) {
-        assert(node);
+//        assert(node);
         return height(node->right) - height(node->left);
     }
 
     int countFactor(Node<T> *node) {
-        assert(node);
+//        assert(node);
         return count(node->right) - count(node->left);
     }
 
     void fixHeight(Node<T> *node) {
-        assert(node);
+//        assert(node);
         unsigned char hl = height(node->left);
         unsigned char hr = height(node->right);
         node->height = std::max(hl, hr) + 1;
     }
 
     void fixCount(Node<T> *node) {
-        assert(node);
-        unsigned char cl = count(node->left);
-        unsigned char cr = count(node->right);
+//        assert(node);
+        unsigned int cl = count(node->left);
+        unsigned int cr = count(node->right);
         node->count = cl + cr + 1;
     }
+
+    Node<T> *moveMax(Node<T> *node, Node<T> **maxAddr);
 };
 
 template<class T, class Compare>
@@ -146,18 +155,17 @@ Node<T> *AvlTree<T, Compare>::rotateLeft(Node<T> *node) {
 
 template<class T, class Compare>
 Node<T> *AvlTree<T, Compare>::balance(Node<T> *node) {
-    assert(node);
+    //assert(node);
 
     fixHeight(node);
     fixCount(node);
-
     if (bFactor(node) == 2) {
         if (bFactor(node->right) < 0) {
             node->right = rotateRight(node->right);
         }
         return rotateLeft(node);
     } else if (bFactor(node) == -2) {
-        if (bFactor(node->left) < 0) {
+        if (bFactor(node->left) > 0) {
             node->left = rotateLeft(node->left);
         }
         return rotateRight(node);
@@ -171,7 +179,6 @@ Node<T> *AvlTree<T, Compare>::insert(T &_data, size_t &pos, Node<T> *node) {
     if (!node) {
         return new Node<T>(_data);
     }
-    node->count++;
     if (cmp(_data, node->data) < 0) {
         pos += count(node->right) + 1;
         node->left = insert(_data, pos, node->left);
@@ -190,7 +197,7 @@ void AvlTree<T, Compare>::remove(T &_data) {
 
 template<class T, class Compare>
 void AvlTree<T, Compare>::removeByPos(size_t pos) {
-    this->root = remove(count(root) - (pos + 1) + 1, this->root);
+    this->root = remove(pos, this->root);
 }
 
 template<class T, class Compare>
@@ -198,10 +205,13 @@ Node<T> *AvlTree<T, Compare>::remove(size_t pos, Node<T> *node) {
     if (!node) {
         return nullptr;
     }
-    if (pos <= count(node->left)) {
-        node->left = remove(pos, node->left);
-    } else if (pos > count(node->left) + 1) {
-        node->right = remove(pos - count(node->left) + 1, node->right);
+    assert(count(node) > pos);
+
+    size_t cur = count(node->right);
+    if (cur > pos) {
+        node->right = remove(pos, node->right);
+    } else if (cur < pos) {
+        node->left = remove(pos - cur - 1, node->left);
     } else {
         Node<T> *q = node->left;
         Node<T> *r = node->right;
@@ -209,62 +219,22 @@ Node<T> *AvlTree<T, Compare>::remove(size_t pos, Node<T> *node) {
         if (!r) {
             return q;
         }
-        if (!q) {
-            return r;
+        Node<T> *tmp = nullptr;
+
+        if (height(q) > height(r)) {
+            Node<T> *min = moveMax(q, &tmp);
+            tmp->right = r;
+            tmp->left = min;
+        } else {
+            Node<T> *min = moveMin(r, &tmp);
+            tmp->left = q;
+            tmp->right = min;
+
         }
-//        if (q->height < r->height) {
-//            Node<T> res = find_and_remove_max(q);
-//            Node<T> *max = res.second;
-//            max->left = res.first;
-//            max->right = r;
-//            return balance(max);
-//        } else {
-        Node<T> *tmp_min = nullptr;
-        Node<T> *tmp = moveMin(r, &tmp_min);
-        tmp_min->left = q;
-        tmp_min->right = tmp;
-
-        return balance(tmp_min);
+        return balance(tmp);
     }
+
     return balance(node);
-
-//    size_t cur = node->count;
-//    assert(cur > pos);
-//    cur = count(node->right);
-//
-//    while (cur != pos) {
-//        if (pos < cur) {
-//            node = node->right;
-//            cur -= 1 + count(node->left);
-//        } else {
-//            node = node->left;
-//            cur += 1 + count(node->right);
-//        }
-//    }
-//    pos = cur - (pos + 1) + 1;
-//    cur = count(node->left);
-//    while (cur != pos) {
-//        if (pos < cur) {
-//            node = node->left;
-//        } else if (pos > cur + 1) {
-//            node = node->right;
-//            pos = pos - count(node->left) + 1;
-//        }
-//    }
-//    Node<T> *q = node->left;
-//    Node<T> *r = node->right;
-//    delete node;
-//    if (!r) {
-//        return q;
-//    }
-//    Node<T> *tmp_min = nullptr;
-//    Node<T> *tmp = moveMin(r, &tmp_min);
-//    tmp_min->left = q;
-//    tmp_min->right = tmp;
-//
-//    return balance(tmp_min);
-
-//    return this->remove(node->data, this->root);
 }
 
 template<class T, class Compare>
@@ -300,8 +270,8 @@ void AvlTree<T, Compare>::PostOrder(void visitor(Node<T> *)) {
         return;
     }
     std::stack<Node<T> *> nodes;
-    nodes.push(root);
-    while (!nodes.empty()) {
+    nodes.push(nullptr);
+    while (!nodes.empty() && root) {
         if (root) {
             if (root->right) {
                 nodes.push(root->right);
@@ -324,6 +294,17 @@ Node<T> *AvlTree<T, Compare>::moveMin(Node<T> *node, Node<T> **minAddr) {
         return node->right;
     }
     node->left = moveMin(node->left, minAddr);
+
+    return balance(node);
+}
+
+template<class T, class Compare>
+Node<T> *AvlTree<T, Compare>::moveMax(Node<T> *node, Node<T> **maxAddr) {
+    if (!node->right) {
+        *maxAddr = node;
+        return node->left;
+    }
+    node->right = moveMax(node->right, maxAddr);
 
     return balance(node);
 }
@@ -355,7 +336,6 @@ int main() {
                 assert(false);
         }
     }
-
 
     return 0;
 }
