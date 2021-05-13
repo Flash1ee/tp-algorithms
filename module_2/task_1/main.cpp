@@ -58,12 +58,14 @@ private:
         bool status; //deleted == false
         unsigned int hash;
 
-        HashElem() = delete;
+        HashElem() : status(true), hash(0) {};
 
-        HashElem(const T &_data, unsigned int _hash) : data(_data), status(true), hash(_hash) {};
+        HashElem(const T &_data, unsigned int _hash) : status(true), hash(_hash) {};
+
+        ~HashElem() = default;
     };
 
-    std::vector<HashElem *> table;
+    std::vector<HashElem> table;
     H Hasher;
     C Probing;
     size_t size;
@@ -72,7 +74,7 @@ private:
 
     void growTable();
 
-    bool Add(HashElem *data);
+    bool Add(HashElem &data);
 };
 
 template<class T, class H, class C>
@@ -83,26 +85,20 @@ HashTable<T, H, C>::HashTable(const H &_hasher, const C &_probing) : capacity(in
 
 template<class T, class H, class C>
 HashTable<T, H, C>::~HashTable() {
-    for (auto *i : table) {
-        delete i;
-    }
     size = 0;
     capacity = 0;
 }
 
 template<class T, class H, class C>
-bool HashTable<T, H, C>::Add(HashElem *data) {
-    if (!data) {
-        return false;
-    }
-    unsigned int absoluteHash = data->hash;
+bool HashTable<T, H, C>::Add(HashElem &data) {
+    unsigned int absoluteHash = data.hash;
     unsigned int hash = absoluteHash % capacity;
     size_t iter = 0;
-    while (table[hash] && iter < capacity) {
-        if (table[hash]->status && table[hash]->data == data->data) {
+    while (iter < capacity) {
+        if (table[hash].status && table[hash].data == data.data) {
             return false;
         }
-        if (!table[hash]->status) {
+        if (!table[hash].status) {
             assert(false);
         }
         iter++;
@@ -124,22 +120,24 @@ bool HashTable<T, H, C>::Add(const T &_data) {
     size_t iter = 0;
     ssize_t first_del = -1;
 
-    while (table[hash] && iter != capacity) {
-        if (table[hash]->status && table[hash]->data == _data) {
+    while (iter != capacity) {
+        if (table[hash].status && table[hash].data == _data) {
             return false;
         }
-        if (!table[hash]->status && first_del == -1) {
+        if (!table[hash].status && first_del == -1) {
             first_del = hash;
         }
         iter++;
         hash = Probing(hash, iter) % capacity;
     }
     if (first_del == -1) {
-        table[hash] = new HashElem(_data, absoluteHash);
+        table[hash].data = _data;
+        table[hash].hash = absoluteHash;
+        table[hash].status = true;
     } else {
-        table[first_del]->data = _data;
-        table[first_del]->hash = absoluteHash;
-        table[first_del]->status = true;
+        table[first_del].data = _data;
+        table[first_del].hash = absoluteHash;
+        table[first_del].status = true;
     }
     size++;
     return true;
@@ -150,8 +148,8 @@ bool HashTable<T, H, C>::Has(const T &_data) const {
     unsigned int hash = Hasher(_data) % capacity;
     size_t iter = 0;
 
-    while (table[hash] && iter <= capacity) {
-        if (table[hash]->status && table[hash]->data == _data) {
+    while (iter <= capacity) {
+        if (table[hash].status && table[hash].data == _data) {
             return true;
         }
         iter++;
@@ -164,11 +162,11 @@ template<class T, class H, class C>
 bool HashTable<T, H, C>::Delete(const T &_data) {
     unsigned int hash = Hasher(_data) % capacity;
     size_t iter = 0;
-    while (table[hash] && iter <= capacity) {
-        if (table[hash]->status && table[hash]->data == _data) {
-            table[hash]->status = false;
-            table[hash]->data = "";
-            table[hash]->hash = 0;
+    while (iter <= capacity) {
+        if (table[hash].status && table[hash].data == _data) {
+            table[hash].status = false;
+            table[hash].data = "";
+            table[hash].hash = 0;
             size--;
             return true;
         }
@@ -182,14 +180,14 @@ template<class T, class H, class C>
 void HashTable<T, H, C>::growTable() {
 
     size_t old_capacity = this->capacity;
-    std::vector<HashElem *> new_buffer(this->capacity * 2);
+    std::vector<HashElem> new_buffer(this->capacity * 2);
 
     this->capacity *= 2;
     this->size = 0;
     std::swap(this->table, new_buffer);
 
     for (size_t i = 0; i < old_capacity; ++i) {
-        if (new_buffer[i] && new_buffer[i]->status) {
+        if (new_buffer[i].status) {
             this->Add(new_buffer[i]);
         }
     }
@@ -251,7 +249,7 @@ void testHash() {
 }
 
 int main() {
-    run(std::cin, std::cout);
-//    testHash();
+//    run(std::cin, std::cout);
+    testHash();
     return 0;
 }
