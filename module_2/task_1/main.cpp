@@ -33,6 +33,12 @@ struct HashGorner {
 
 };
 
+enum STATE {
+    EMPTY,
+    DELETED,
+    USED
+};
+
 template<class T, class H, class C>
 class HashTable {
 public:
@@ -55,14 +61,12 @@ public:
 private:
     struct HashElem {
         T data;
-        bool status; //deleted == false
+        STATE status; //deleted == false
         unsigned int hash;
 
-        HashElem() : status(true), hash(0) {};
+        HashElem() : status(EMPTY) {};
 
-        HashElem(const T &_data, unsigned int _hash) : status(true), hash(_hash) {};
-
-        ~HashElem() = default;
+        HashElem(const T &_data, unsigned int _hash) : data(_data), status(USED), hash(_hash) {};
     };
 
     std::vector<HashElem> table;
@@ -88,17 +92,16 @@ HashTable<T, H, C>::~HashTable() {
     size = 0;
     capacity = 0;
 }
-
 template<class T, class H, class C>
 bool HashTable<T, H, C>::Add(HashElem &data) {
     unsigned int absoluteHash = data.hash;
     unsigned int hash = absoluteHash % capacity;
     size_t iter = 0;
-    while (iter < capacity) {
-        if (table[hash].status && table[hash].data == data.data) {
+    while (table[hash].status != EMPTY && iter < capacity) {
+        if (table[hash].status == USED && table[hash].data == data.data) {
             return false;
         }
-        if (!table[hash].status) {
+        if (table[hash].status == DELETED) {
             assert(false);
         }
         iter++;
@@ -120,24 +123,24 @@ bool HashTable<T, H, C>::Add(const T &_data) {
     size_t iter = 0;
     ssize_t first_del = -1;
 
-    while (iter != capacity) {
-        if (table[hash].status && table[hash].data == _data) {
+    while (table[hash].status != EMPTY && iter != capacity) {
+        if (table[hash].status == USED && table[hash].data == _data) {
             return false;
         }
-        if (!table[hash].status && first_del == -1) {
+        if (table[hash].status == DELETED && first_del == -1) {
             first_del = hash;
         }
         iter++;
         hash = Probing(hash, iter) % capacity;
     }
     if (first_del == -1) {
-        table[hash].data = _data;
+        table[hash].data = std::move(_data);
         table[hash].hash = absoluteHash;
-        table[hash].status = true;
+        table[hash].status = USED;
     } else {
-        table[first_del].data = _data;
+        table[first_del].data = std::move(_data);
         table[first_del].hash = absoluteHash;
-        table[first_del].status = true;
+        table[first_del].status = USED;
     }
     size++;
     return true;
@@ -148,8 +151,8 @@ bool HashTable<T, H, C>::Has(const T &_data) const {
     unsigned int hash = Hasher(_data) % capacity;
     size_t iter = 0;
 
-    while (iter <= capacity) {
-        if (table[hash].status && table[hash].data == _data) {
+    while (table[hash].status != EMPTY && iter < capacity) {
+        if (table[hash].status == USED && table[hash].data == _data) {
             return true;
         }
         iter++;
@@ -162,9 +165,9 @@ template<class T, class H, class C>
 bool HashTable<T, H, C>::Delete(const T &_data) {
     unsigned int hash = Hasher(_data) % capacity;
     size_t iter = 0;
-    while (iter <= capacity) {
-        if (table[hash].status && table[hash].data == _data) {
-            table[hash].status = false;
+    while (table[hash].status != EMPTY && iter < capacity) {
+        if (table[hash].status == USED && table[hash].data == _data) {
+            table[hash].status = DELETED;
             table[hash].data = "";
             table[hash].hash = 0;
             size--;
@@ -187,7 +190,7 @@ void HashTable<T, H, C>::growTable() {
     std::swap(this->table, new_buffer);
 
     for (size_t i = 0; i < old_capacity; ++i) {
-        if (new_buffer[i].status) {
+        if (new_buffer[i].status == USED) {
             this->Add(new_buffer[i]);
         }
     }
@@ -249,7 +252,7 @@ void testHash() {
 }
 
 int main() {
-//    run(std::cin, std::cout);
-    testHash();
+    run(std::cin, std::cout);
+//    testHash();
     return 0;
 }
