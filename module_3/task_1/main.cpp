@@ -4,6 +4,7 @@
 #include "ListGraph.hpp"
 #include "MatrixGraph.hpp"
 #include "SetGraph.hpp"
+#include "ArcGraph.hpp"
 
 #include <iostream>
 
@@ -53,6 +54,20 @@ int main() {
     BFS(set_graph, 0, [](int vertex) -> void { std::cout << vertex << " "; });
 
     std::cout << std::endl;
+
+    ArcGraph arc_graph(vertices);
+    arc_graph.AddEdge(0, 1);
+    arc_graph.AddEdge(0, 3);
+    arc_graph.AddEdge(0, 2);
+    arc_graph.AddEdge(1, 3);
+    arc_graph.AddEdge(1, 5);
+    arc_graph.AddEdge(3, 4);
+
+
+    BFS(arc_graph, 0, [](int vertex) -> void { std::cout << vertex << " "; });
+
+    std::cout << std::endl;
+
 
 
     return 0;
