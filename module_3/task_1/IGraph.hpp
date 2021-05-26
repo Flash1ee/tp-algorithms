@@ -5,6 +5,7 @@
 #pragma once
 
 #include <vector>
+#include <cassert>
 #include <queue>
 
 struct IGraph {
