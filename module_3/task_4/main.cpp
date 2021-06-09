@@ -2,10 +2,12 @@
 #include <queue>
 #include <unordered_map>
 #include <assert.h>
+#include <sstream>
 #include <string>
 #include <iostream>
 #include <cstring>
 #include <algorithm>
+#include <set>
 
 using std::array;
 using std::queue;
@@ -41,13 +43,32 @@ public:
 
     bool IsFinish() const;
 
+    int getManhattanDistance();
+
+    int getHeuristicDistance() const { return this->heuristicDistance; }
+
+    char getLastMove() const { return this->lastMove; }
+
     bool operator==(const GameState &state) const { return field == state.field; }
 
     bool operator!=(const GameState &state) const { return !(*this == state); }
 
+    bool operator<(const GameState &state) const {
+        return heuristicDistance < state.getHeuristicDistance();
+    }
+
+    void updateHeuristic() {
+        this->heuristicDistance = getManhattanDistance() + ((field[FieldSize - 1] == FieldSize - 1 ||
+                                                             field[FieldSize - 1] == FieldSize - SideSize) ? 0 : 2);
+    }
+
+    void saveLastMove(char action) { this->lastMove = action; }
+
 private:
     array<char, FieldSize> field;
     char zeroPos;
+    int heuristicDistance;
+    char lastMove;
 
     friend ostream &operator<<(ostream &out, const GameState &state);
 
@@ -64,14 +85,26 @@ ostream &operator<<(ostream &out, const GameState &state) {
     return out;
 }
 
+int GameState::getManhattanDistance() {
+    int res = 0;
+    for (int i = 0; i < FieldSize; ++i) {
+        int number = (field[i] + FieldSize - 1) % FieldSize;
+        res += abs(number - i) % SideSize + abs((number / SideSize - i / SideSize));
+    }
+    return res;
+}
+
 GameState::GameState(const array<char, FieldSize> &_field) :
         field(_field),
-        zeroPos(-1) {
+        zeroPos(-1),
+        heuristicDistance(0),
+        lastMove('S') {
     for (unsigned int i = 0; i < field.size(); ++i)
         if (field[i] == 0) {
             zeroPos = i;
             break;
         }
+    updateHeuristic();
     assert(zeroPos != -1);
 }
 
@@ -96,6 +129,8 @@ GameState GameState::MoveLeft() const {
     GameState newState(*this);
     swap(newState.field[newState.zeroPos], newState.field[newState.zeroPos - 1]);
     --newState.zeroPos;
+    newState.saveLastMove('R');
+    newState.updateHeuristic();
     return newState;
 }
 
@@ -104,6 +139,8 @@ GameState GameState::MoveUp() const {
     GameState newState(*this);
     swap(newState.field[newState.zeroPos], newState.field[newState.zeroPos - SideSize]);
     newState.zeroPos -= SideSize;
+    newState.saveLastMove('D');
+    newState.updateHeuristic();
     return newState;
 }
 
@@ -112,6 +149,8 @@ GameState GameState::MoveRight() const {
     GameState newState(*this);
     swap(newState.field[newState.zeroPos], newState.field[newState.zeroPos + 1]);
     ++newState.zeroPos;
+    newState.saveLastMove('L');
+    newState.updateHeuristic();
     return newState;
 }
 
@@ -120,6 +159,8 @@ GameState GameState::MoveDown() const {
     GameState newState(*this);
     swap(newState.field[newState.zeroPos], newState.field[newState.zeroPos + SideSize]);
     newState.zeroPos += SideSize;
+    newState.saveLastMove('U');
+    newState.updateHeuristic();
     return newState;
 }
 
@@ -135,45 +176,48 @@ struct StateHasher {
     }
 };
 
-string Get8thSolution(const GameState &state) {
-    queue<GameState> bfsQueue;
-    bfsQueue.push(state);
+string Get15thSolution(const GameState &state) {
+    std::set<GameState> stateSet;
+    stateSet.insert(state);
     unordered_map<GameState, char, StateHasher> visited;
     visited[state] = 'S';
     bool hasSolution = false;
-    while (!bfsQueue.empty()) {
-        GameState tempState = bfsQueue.front();
-        bfsQueue.pop();
+    while (!stateSet.empty()) {
+        GameState tempState = *(stateSet.begin());
+        stateSet.erase(tempState);
         if (tempState.IsFinish()) {
             hasSolution = true;
             break;
         }
-        if (tempState.CanMoveLeft()) {
+        if (tempState.CanMoveLeft() && tempState.getLastMove() != 'L') {
             GameState newState = tempState.MoveLeft();
             if (visited.find(newState) == visited.end()) {
                 visited[newState] = 'L';
-                bfsQueue.push(newState);
+                stateSet.insert(newState);
             }
         }
-        if (tempState.CanMoveUp()) {
+        if (tempState.CanMoveUp() && tempState.getLastMove() != 'D') {
             GameState newState = tempState.MoveUp();
             if (visited.find(newState) == visited.end()) {
                 visited[newState] = 'U';
-                bfsQueue.push(newState);
+                newState.saveLastMove('D');
+                stateSet.insert(newState);
             }
         }
-        if (tempState.CanMoveRight()) {
+        if (tempState.CanMoveRight() && tempState.getLastMove() != 'R') {
             GameState newState = tempState.MoveRight();
             if (visited.find(newState) == visited.end()) {
                 visited[newState] = 'R';
-                bfsQueue.push(newState);
+                newState.saveLastMove('L');
+                stateSet.insert(newState);
             }
         }
-        if (tempState.CanMoveDown()) {
+        if (tempState.CanMoveDown() && tempState.getLastMove() != 'D') {
             GameState newState = tempState.MoveDown();
             if (visited.find(newState) == visited.end()) {
                 visited[newState] = 'D';
-                bfsQueue.push(newState);
+                newState.saveLastMove('U');
+                stateSet.insert(newState);
             }
         }
     }
@@ -206,24 +250,21 @@ string Get8thSolution(const GameState &state) {
     return result;
 }
 
-struct A {
-    virtual ~A() = 0;
-};
-
-A::~A() {
-
-}
-
-struct B : public A {
-    ~B() override = default;
-};
-
-int main() {
-    A *a = new B;
-    delete a;
-    GameState state({15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0});
-    cout << state << std::endl;
-    string solution = Get8thSolution(state);
+int run(std::istream &in, std::ostream &out) {
+    array<char, FieldSize> data{};
+    int tmp;
+    for (int i = 0; i < FieldSize; ++i) {
+        in >> tmp;
+        data[i] = tmp;
+    }
+    GameState state(data);
+    string solution = Get15thSolution(state);
+    if (solution.empty()) {
+        out << "-1" << std::endl;
+        return -1;
+    } else {
+        out << state << std::endl;
+    }
     for (char direction : solution) {
         switch (direction) {
             case 'L':
@@ -239,8 +280,85 @@ int main() {
                 state = state.MoveDown();
                 break;
         }
-        cout << state << std::endl;
+        out << state << std::endl;
+    }
+    return 0;
+
+}
+
+void test_cases() {
+    {
+        std::stringstream input;
+        std::stringstream output;
+        input << "3 5 0 1\n"
+                 "6 9 7 2\n"
+                 "14 11 8 4\n"
+                 "15 10 13 12";
+        auto res = run(input, output);
+        assert(!res);
+        assert(!output.str().empty());
+    }
+    {
+        std::stringstream input;
+        std::stringstream output;
+        input << "1 2 3 4\n"
+                 "5 6 7 8\n"
+                 "9 10 11 12\n"
+                 "13 15 14 0";
+        auto res = run(input, output);
+        assert(res == -1);
+//        assert(output.str() == "-1");
+    }
+    {
+        std::stringstream input;
+        std::stringstream output;
+        input << "0 1 2 3\n"
+                 "5 6 7 4\n"
+                 "9 10 11 8\n"
+                 "13 14 15 12";
+        auto res = run(input, output);
+        assert(output.str() == "0 1 2 3 \n"
+                               "5 6 7 4 \n"
+                               "9 10 11 8 \n"
+                               "13 14 15 12 \n"
+                               "\n"
+                               "1 0 2 3 \n"
+                               "5 6 7 4 \n"
+                               "9 10 11 8 \n"
+                               "13 14 15 12 \n"
+                               "\n"
+                               "1 2 0 3 \n"
+                               "5 6 7 4 \n"
+                               "9 10 11 8 \n"
+                               "13 14 15 12 \n"
+                               "\n"
+                               "1 2 3 0 \n"
+                               "5 6 7 4 \n"
+                               "9 10 11 8 \n"
+                               "13 14 15 12 \n"
+                               "\n"
+                               "1 2 3 4 \n"
+                               "5 6 7 0 \n"
+                               "9 10 11 8 \n"
+                               "13 14 15 12 \n"
+                               "\n"
+                               "1 2 3 4 \n"
+                               "5 6 7 8 \n"
+                               "9 10 11 0 \n"
+                               "13 14 15 12 \n"
+                               "\n"
+                               "1 2 3 4 \n"
+                               "5 6 7 8 \n"
+                               "9 10 11 12 \n"
+                               "13 14 15 0 \n"
+                               "\n");
+        assert(!res);
     }
 
+}
+
+int main() {
+    //run(std::cin, std::cout);
+    test_cases();
     return 0;
 }
